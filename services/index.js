@@ -11,7 +11,7 @@ var expressSession = require('express-session');
 var passport = require('passport');
 var mongoose = require('mongoose');
 
-const uri = 'mongodb+srv://Daviskitavi:35330872@mernproject.50ink.mongodb.net/flux?retryWrites=true&w=majority';
+const uri = '*****';
 
 mongoose.connect(uri);
 

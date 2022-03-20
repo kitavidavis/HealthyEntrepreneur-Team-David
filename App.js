@@ -35,11 +35,11 @@ LogBox.ignoreLogs([
 import French from './assets/franch';
 import Swahili from './assets/swahili';
 
-const ACCESS_KEY_ID = 'AKIA55RAOI3SBYWGVFVZ';
-const SECRET_ACCESS_KEY = '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';
-const PROFILES_BUCKET = 'flux-user-profiles';
+const ACCESS_KEY_ID = '****';
+const SECRET_ACCESS_KEY = '****';
+const PROFILES_BUCKET = '****';
 const REGION = 'us-east-2';
-const IDENTITY_POOL_ID =  'us-east-2:60fc8b38-6443-400d-8013-26e0c756abae';
+const IDENTITY_POOL_ID =  '****';
 
 const Stack = createStackNavigator();
 const AuthContext = React.createContext();

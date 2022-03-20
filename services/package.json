@@ -1,0 +1,50 @@
+{
+  "name": "services",
+  "version": "1.0.0",
+  "description": "Simple backend services for Healthy entrepreneurs project",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@handlebars/allow-prototype-access": "^1.0.5",
+    "@sendgrid/mail": "^7.6.0",
+    "bcryptjs": "*",
+    "body-parser": "*",
+    "connect-flash": "*",
+    "cookie-parser": "^1.4.5",
+    "cookie-session": "^1.4.0",
+    "datatables-query": "^0.2.0",
+    "dotenv": "^14.2.0",
+    "dynamic-tabs": "^2.0.0",
+    "express": "*",
+    "express-handlebars": "*",
+    "express-messages": "*",
+    "express-session": "*",
+    "express-validator": "^5.3.0",
+    "express3-handlebars": "*",
+    "handlebars": "^4.5.0",
+    "mongodb": "^4.1.0",
+    "mongojs": "*",
+    "mongoose": "*",
+    "mongoose-datatables": "^3.2.0",
+    "multer": "^1.4.3",
+    "nodemailer": "^6.6.3",
+    "nodemailer-smtp-transport": "^2.7.4",
+    "nodemon": "^2.0.13",
+    "passport": "*",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-http": "*",
+    "passport-local": "*",
+    "request": "^2.88.2",
+    "save": "^2.4.0",
+    "ws": "^8.5.0"
+  },
+  "devDependencies": {
+    "handlebars": "^4.5.0"
+  },
+  "author": "David Kitavi",
+  "license": "ISC"
+}

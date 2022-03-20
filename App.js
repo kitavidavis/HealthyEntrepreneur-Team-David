@@ -4,35 +4,29 @@ import { useState, useRef, useEffect, useContext} from 'react';
 import { NavigationContainer } from '@react-navigation/native'
 import { createStackNavigator } from '@react-navigation/stack';
 import * as ImagePicker from 'react-native-image-picker';
-import Geolocation from '@react-native-community/geolocation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Button, ActivityIndicator, HelperText, ProgressBar, TouchableRipple, Chip, BottomNavigation, Appbar, RadioButton, TextInput, Colors, IconButton, Searchbar, FAB, Divider, Card, Title, Paragraph, Surface, List, Badge, Avatar, Snackbar,} from 'react-native-paper';
+import { Button, ActivityIndicator, TouchableRipple, BottomNavigation, Appbar, RadioButton, TextInput, Colors,  Searchbar,  Divider, Title, Paragraph, Surface, List, Avatar, Snackbar,} from 'react-native-paper';
 import {
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
   ImageBackground,
-  Pressable,
-  Image,
   Dimensions,
-  Animated,
-  Platform,
   Alert,
   PermissionsAndroid,
-  BackHandler,
-  Appearance,
-  RefreshControl,
-  TouchableWithoutFeedback,
-  Keyboard
 } from 'react-native';
 import { LineChart } from "react-native-chart-kit";
-
+import fs from 'react-native-fs';
+import { decode } from 'base64-arraybuffer';
+var S3 = require('aws-sdk/clients/s3');
+import DatePicker from 'react-native-date-picker';
+import Geolocation from '@react-native-community/geolocation';
+import NetInfo from "@react-native-community/netinfo";
+import notifee from "@notifee/react-native"
 import { LogBox } from 'react-native';
-
 LogBox.ignoreLogs([
   "[react-native-gesture-handler] Seems like you\'re using an old API with gesture components, check out new Gestures system!",
 ]);
@@ -41,8 +35,13 @@ LogBox.ignoreLogs([
 import French from './assets/franch';
 import Swahili from './assets/swahili';
 
-const Stack = createStackNavigator();
+const ACCESS_KEY_ID = 'AKIA55RAOI3SBYWGVFVZ';
+const SECRET_ACCESS_KEY = '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';
+const PROFILES_BUCKET = 'flux-user-profiles';
+const REGION = 'us-east-2';
+const IDENTITY_POOL_ID =  'us-east-2:60fc8b38-6443-400d-8013-26e0c756abae';
 
+const Stack = createStackNavigator();
 const AuthContext = React.createContext();
 
 function Loading({ navigation }){
@@ -56,7 +55,6 @@ function Loading({ navigation }){
 
 function Welcome({ navigation }){
   const [language, setLanguage] = useState(null);
-
   const handleLanguageChoice = async(lang) => {
     switch(lang){
       case 'KISW':
@@ -89,6 +87,7 @@ function Welcome({ navigation }){
     }
 
     A();
+
   }, [])
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: Colors.blue700, justifyContent: 'space-between',}} >
@@ -263,6 +262,42 @@ function ForgotPassword({ navigation }){
 
 function Home({navigation}){
   const [index, setIndex] = React.useState(0);
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
+  const [globallang, setGlobalLang] = useState({});
+  const [globalt, setGlobalT] = useState(false);
+  useEffect(() => {
+    const initLocation = async () => {
+      Geolocation.getCurrentPosition(async position => {
+            setLatitude(parseFloat(position.coords.latitude));
+            setLongitude(parseFloat(position.coords.longitude));
+    
+      }, 
+      error => console.log(error),
+      );
+    
+    }
+    
+    initLocation();
+
+    async function A(){
+      var lang = await AsyncStorage.getItem('lang');
+      switch(lang){
+        case "ENG":
+          setGlobalLang({});
+          break;
+        case 'KISW':
+            setGlobalLang(Swahili);
+            setGlobalT(true);
+            break;
+        default:
+            setGlobalLang(French)
+            setGlobalLang(true);
+      }
+    }
+
+    A();
+  }, [])
 
   const Dashboard = ({ navigation }) => {
     const [language, setLanguage] = useState({});
@@ -274,6 +309,7 @@ function Home({navigation}){
     const surfaceWidth = (Dimensions.get('window').width);
     const surfaceWidth2 = (Dimensions.get('window').width) * 0.6;
     const surfaceWidth1 = (Dimensions.get('window').width) * 0.45;
+    const [network, setNetwork] = useState(false);
 
     useEffect(() => {
       async function A(){
@@ -293,13 +329,49 @@ function Home({navigation}){
       }
 
       A();
+
+      var timer = setInterval(function(){RefreshConnections()}, 1000);
+      var timer2 = setInterval(function(){RefreshLanguages()}, 1000);
+  
+      return () => {
+        clearInterval(timer);
+        clearInterval(timer2);
+      }
     }, []);
+
+    const RefreshLanguages = React.useCallback(() => {
+      async function A(){
+        var lang = await AsyncStorage.getItem('lang');
+        switch(lang){
+          case "ENG":
+            setLanguage({});
+            break;
+          case 'KISW':
+              setLanguage(Swahili);
+              setT(true);
+              break;
+          default:
+              setLanguage(French)
+              setT(true);
+        }
+      }
+  
+      A();
+    }, []);
+  
+    const RefreshConnections = React.useCallback(() => {
+      const unsubscribe = NetInfo.addEventListener(state => {
+        state.isConnected ? setNetwork(true): setNetwork(false);
+      });
+      
+      unsubscribe();
+    }, [])
 
     return (
       <SafeAreaView style={{flex: 1,}} >
         <StatusBar backgroundColor={Colors.blue700}/>
       <Appbar.Header style={{backgroundColor: Colors.blue700}} >
-      <Appbar.Content title={t ? language.statement7 : "Home"} titleStyle={{fontSize: 24}} style={{color: 'white', fontSize: 28}} />
+      <Appbar.Content title={t ? language.statement7 : "Home"}  style={{color: 'white',}} />
         </Appbar.Header>
       <View style={{height: height1, backgroundColor: Colors.blue700}} >
         <Searchbar placeholder={t ? language.statement8 : 'Search Clients, Inventory ...'} iconColor='white' inputStyle={{color: 'white'}}  style={{ color: 'white', marginBottom: 10, marginLeft: 10, marginRight: 10, height: 40, backgroundColor: '#84A9FF', borderBottomWidth: 1, borderBottomColor: 'white', borderEndWidth: 1, borderEndColor: 'white', borderLeftColor: 'white', borderLeftWidth: 1, borderStartColor: 'white', borderStartWidth: 1,}} placeholderTextColor='white' />
@@ -370,8 +442,258 @@ function Home({navigation}){
     const [list2, setList2] = useState(false);
     const [list3, setList3] = useState(false);
     const [basic, setBasic] = useState(false);
+    const [basicdone, setBasicDone] = useState(false);
     const [photo, setPhoto] = useState(false);
+    const [photo2, setPhoto2] = useState(null);
     const [alignment, setAlignment] = useState(false);
+    const [alignmentdone, setAlignmentDone] = useState(false);
+    const [disease, setDisease] = useState(null);
+    const [diseasedesc, setDiseaseDesc] = useState(null);
+    const [photoasset, setPhotoAsset] = useState(null);
+    const [habits, setHabits] = useState(false);
+    const [habitsdone, setHabitsDone] = useState(false);
+    const [customerhabits, setCustomerHabits] = useState(null);
+    const [success, setSuccess] = useState(false);
+    const [error, setError] = useState(false);
+    const [indicator, setIndicator] = useState(false);
+    const [galleryOptions, setGalleryOptions] = React.useState({
+      maxHeight: 200,
+      maxWidth: 200,
+      selectionLimit: 0,
+      mediaType: 'photo',
+      includeBase64: false,
+    });
+    const [date, setDate] = useState(new Date());
+    const [open, setOpen] = useState(false);
+    const [age, setAge] = useState(null);
+    const [firstname, setFirstname] = useState(null);
+    const [lastname, setLastname] = useState(null);
+    const [gender, setGender] = useState(null);
+    const [snack, setSnack] = useState(false);
+    const [language, setLanguage] = useState({});
+    const [t, setT] = useState(false);
+    const [network, setNetwork] = useState(false);
+
+    const chooseCameraGallary = () => {
+      Alert.alert(
+        "Upload Photo",
+        "Choose image source",
+        [
+          {
+            text: "Camera",
+            onPress: () => openCamera()
+          },
+          { text: "Gallery", onPress: () => openGallery() },
+          {
+            text: "Cancel",
+            onPress: () => console.log("Cancel Pressed"),
+            style: "cancel"
+          }
+        ]
+      );
+    }
+
+    const openCamera = () => {
+
+      let options = {
+  
+        storageOptions: {
+  
+          skipBackup: true,
+  
+          path: 'images',
+  
+        },
+  
+      };
+  
+      ImagePicker.launchCamera(options, (res) => {
+  
+        console.log('Response = ', res);
+  
+        if (res.didCancel) {
+  
+        console.log('cancelled!');
+  
+        } else if (res.error) {
+  
+          console.log('error!');
+  
+        } else {
+          setPhotoAsset(res);
+        }
+  
+      });
+  
+  }
+
+  const openGallery = () => {
+    ImagePicker.launchImageLibrary(galleryOptions, (res) => {
+      if (res.didCancel) {
+       console.log("Cancelled!");
+      } else if(res.error) {
+        console.log('error');
+      } else {
+        setPhotoAsset(res)
+      }
+    });
+  }
+
+  const uploadPhotoToS3 = async () => {
+    setIndicator(true);
+
+    if(network){
+      let contentType = "image/jpg";
+      let contentDeposition = 'inline;filename="' +photoasset.assets+ '"';
+    
+    
+      const fPath = photoasset.assets[0].uri;
+    
+      console.log(fPath);
+      const base64 = await fs.readFile(fPath, "base64");
+        //console.log(base64);
+    
+      const arrayBuffer = decode(base64);
+    
+      const s3Bucket = new S3({
+        accessKeyId: ACCESS_KEY_ID,
+        secretAccessKey: SECRET_ACCESS_KEY,
+        Bucket: PROFILES_BUCKET,
+        region: REGION,
+        signatureVersion: "v4"
+      });
+      let key = 'customer_'+ new Date().getTime() / 1000;
+      s3Bucket.createBucket(() => {
+        const params = {
+          Bucket: PROFILES_BUCKET,
+          Key: key,
+          Body: arrayBuffer,
+          ContentDisposition: contentDeposition,
+          ContentType: contentType
+        };
+    
+        s3Bucket.upload(params, (err, data) => {
+          if(err){
+            setIndicator(false);
+            console.log(err)
+            setError(true);
+            setTimeout(function(){setError(false)}, 3000);
+          }
+    
+          setIndicator(false);
+          setSuccess(true);
+          setPhoto(false);
+          setPhotoAsset(key);
+        });
+      });
+    } else {
+      alert("Photo will be queued untill we detect connections.")
+    }
+  }
+
+  useEffect(() => {
+    async function requestCamera() {
+      var camera = await AsyncStorage.getItem("camera");
+
+      if(camera != "allowed"){
+        try {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+            {
+              title: "Permission Request",
+              message:
+                "Allow HE to use camera " ,
+              buttonNeutral: "Ask Me Later",
+              buttonNegative: "Cancel",
+              buttonPositive: "OK"
+            }
+          );
+          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+           await AsyncStorage.setItem("camera", "allowed");
+          } else {
+            console.log("Camera permission denied");
+          }
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+    }
+
+    requestCamera()
+
+    async function A(){
+      var lang = await AsyncStorage.getItem('lang');
+      switch(lang){
+        case "ENG":
+          setLanguage({});
+          break;
+        case 'KISW':
+            setLanguage(Swahili);
+            setT(true);
+            break;
+        default:
+            setLanguage(French)
+            setT(true);
+      }
+    }
+
+    A();
+
+    var timer = setInterval(function(){RefreshConnections()}, 1000);
+    var timer2 = setInterval(function(){RefreshLanguages()}, 1000);
+
+    return () => {
+      clearInterval(timer);
+      clearInterval(timer2);
+    }
+  }, []);
+
+  const RefreshLanguages = React.useCallback(() => {
+    async function A(){
+      var lang = await AsyncStorage.getItem('lang');
+      switch(lang){
+        case "ENG":
+          setLanguage({});
+          break;
+        case 'KISW':
+            setLanguage(Swahili);
+            setT(true);
+            break;
+        default:
+            setLanguage(French)
+            setT(true);
+      }
+    }
+
+    A();
+  }, []);
+
+  const RefreshConnections = React.useCallback(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      state.isConnected ? setNetwork(true): setNetwork(false);
+    });
+    
+    unsubscribe();
+  }, [])
+
+  const onDismissSnackBar1 = () => {
+    setSuccess(false);
+    setPhoto(false);
+  }
+  const onDismissSnackBar2 = () => {
+    setError(false);
+  }
+
+  const onDismissSnackBar3 = () => {
+    setSnack(false);
+  }
+
+
+  function calculateAge(birthday) { 
+    var ageDifMs = Date.now() - birthday;
+    var ageDate = new Date(ageDifMs); 
+    return Math.abs(ageDate.getUTCFullYear() - 1970);
+  }
 
     return (
      <SafeAreaView style={{flex: 1,}} >
@@ -380,56 +702,63 @@ function Home({navigation}){
       {!list1 && !list2 && !list3 ? (
       <Appbar.Header style={{backgroundColor: Colors.blue700}} >
       <Appbar.BackAction onPress={() => {setIndex(0)}} />
-    <Appbar.Content title="Customers"  style={{color: 'white',}} />
+    <Appbar.Content title={t ? language.statement25 : "Customers" } style={{color: 'white',}} />
     </Appbar.Header>
       ) : list1 && !list2 && !list3 ? (
         <Appbar.Header style={{backgroundColor: Colors.blue700}} >
         <Appbar.BackAction onPress={() => {setList1(false)}} /> 
-        <Appbar.Content title="Add New Client" titleStyle={{fontSize: 24}} style={{color: 'white', fontSize: 28}} />
+        <Appbar.Content title={t ? language.statement33 : "Add New Client" } style={{color: 'white',}} />
         </Appbar.Header>
       ): !list1 && list2 && !list3 ? (
         <Appbar.Header style={{backgroundColor: Colors.blue700}} >
         <Appbar.BackAction onPress={() => {setList2(false)}} /> 
-        <Appbar.Content title="Update Customer Info" titleStyle={{fontSize: 24}} style={{color: 'white', fontSize: 28}} />
+        <Appbar.Content title="Update Customer Info"  style={{color: 'white',}} />
         </Appbar.Header>
       ): (
         <Appbar.Header style={{backgroundColor: Colors.blue700}} >
         <Appbar.BackAction onPress={() => {setList3(false)}} /> 
-        <Appbar.Content title="Delete Customer Info" titleStyle={{fontSize: 24}} style={{color: 'white', fontSize: 28}} />
+        <Appbar.Content title="Delete Customer Info"  style={{color: 'white',}} />
         </Appbar.Header>
       )}
        
        <View style={{marginTop: 20, marginLeft: 10, marginBottom: 20,}} >
-       {basic && list1 && !alignment && !photo ? (
+       {basic && list1 && !alignment && !photo && !habits ? (
          <View>
           <TouchableRipple style={{width: '10%'}} onPress={() => {setBasic(false)}} >
           <Button icon="arrow-left" />
           </TouchableRipple>
             <Title>Add Basic Info</Title>
          </View>
-       ) : !basic && list1 && alignment && !photo ? (
+       ) : !basic && list1 && alignment && !photo && !habits ? (
         <View>
         <TouchableRipple style={{width: '10%'}} onPress={() => {setAlignment(false)}} >
         <Button icon="arrow-left" />
         </TouchableRipple>
           <Title>Aillment Description</Title>
        </View>
-       ) : !basic && list1 && !alignment && photo ? (
+       ) : !basic && list1 && !alignment && photo && !habits ? (
         <View>
         <TouchableRipple style={{width: '10%'}} onPress={() => {setPhoto(false)}} >
         <Button icon="arrow-left" />
         </TouchableRipple>
           <Title>Customer Photo</Title>
        </View>
-       ) : !basic && list1 && !alignment && !photo ? (
+       ) : !basic && list1 && !alignment && photo && !habits ? (
+        <View>
+        <TouchableRipple style={{width: '10%'}} onPress={() => {setHabits(false)}} >
+        <Button icon="arrow-left" />
+        </TouchableRipple>
+          <Title>Customer Habits</Title>
+       </View>
+       ) : !basic && list1 && !alignment && !photo && !habits ? (
         <View>
         <TouchableRipple style={{width: '10%'}} onPress={() => {setList1(false)}} >
         <Button icon="arrow-left" />
         </TouchableRipple>
-          <Title>Add New Customer</Title>
+          <Title>{t ? language.statement34 : "Add New Customer"}</Title>
        </View>
        ): (
-        <Title> Manage Clients</Title>
+        <Title> {t ? language.statement26 : "Manage Clients"} </Title>
        ) }
        </View>
 {!list1 && !list2 && !list3 ? (
@@ -437,8 +766,8 @@ function Home({navigation}){
   <List.Section>
   <List.Accordion
   style={{left: 0, }}
-  title="Add New Client"
-  description="Record down your customer's details"
+  title={t ? language.statement27 : "Add New Client"}
+  description={t ? language.statement28 : "Record down your customer's details"}
   expanded={false}
   onPress={() => {setList1(true)}}
   right={props => <List.Icon {...props} icon="chevron-right" />}>
@@ -446,8 +775,8 @@ function Home({navigation}){
   </List.Accordion>
   <List.Accordion
   style={{left: 0, }}
-  title="Update Client"
-  description="Change your customer's metadata"
+  title={t ? language.statement29 : "Update Client"}
+  description={t ? language.statement30 : "Change your customer's metadata"}
   expanded={false}
   onPress = {() => {setList2(true)}}
   right={props => <List.Icon {...props} icon="chevron-right" />}>
@@ -455,8 +784,8 @@ function Home({navigation}){
   </List.Accordion>
   <List.Accordion
   style={{left: 0, }}
-  title="Delete Client"
-  description="Delete your customer's information."
+  title={t ? language.statement31 : "Delete Client"}
+  description={t ? language.statement32 : "Delete your customer's information."}
   expanded={false}
   onPress= {() => {setList3(true)}}
   right={props => <List.Icon {...props} icon="chevron-right" />}>
@@ -464,80 +793,245 @@ function Home({navigation}){
   </List.Accordion>
 </List.Section>
 ) : list1 && !list2 && !list3 ? (
-  !basic && !alignment && !photo ? (
+  !basic && !alignment && !photo && !habits ? (
     <List.Section>
     <List.Accordion
     style={{left: 0, }}
-    title="Basic Information"
+    title={t ? language.statement35 : "Basic Information"}
+    description={t ? language.statement36 : "Customer name, age, gender etc"}
     expanded={false}
     onPress={() => {setBasic(true)}}
-    right={props => <List.Icon {...props} icon="chevron-right" />}>
+    right={props => <List.Icon {...props} icon={basicdone ? "check" : "chevron-right"} color={basicdone ? Colors.green700 : null} />}>
   
     </List.Accordion>
     <List.Accordion
     style={{left: 0, }}
-    title="Customer Aillment"
+    title={t ? language.statement37 : "Customer Aillment"}
+    description={t ? language.statement38 : "Customer sickness"}
     expanded={false}
     onPress={() => {setAlignment(true)}}
-    right={props => <List.Icon {...props} icon="chevron-right" />}>
+    right={props => <List.Icon {...props} icon={alignmentdone ? "check" : "chevron-right"} color={alignmentdone ? Colors.green700 : null} />}>
+      
+    </List.Accordion>
+
+    <List.Accordion
+    style={{left: 0, }}
+    title={t ? language.statement39 : "Customer Habits"}
+    description={t ? language.statement40 : "Chronic diseases, smoking, heart failure etc" }
+    expanded={false}
+    onPress={() => {setHabits(true)}}
+    right={props => <List.Icon {...props} icon={habitsdone ? "check" : "chevron-right"} color={habitsdone ? Colors.green700 : null} />}>
       
     </List.Accordion>
     <List.Accordion
     style={{left: 0, }}
-    title="Customer Photo"
+    title={t ? language.statement41 : "Customer Photo"}
+    description={t ? language.statement42 : "Use camera or upload from gallery" }
     expanded={false}
     onPress={() => {setPhoto(true)}}
-    right={props => <List.Icon {...props} icon="chevron-right" />}>
+    right={props => <List.Icon {...props} icon={photoasset != null ? "check" : "chevron-right"} color={photoasset != null ? Colors.green700 : null} />}>
       
     </List.Accordion>
+
+    <TouchableRipple disabled={basicdone  && alignmentdone  && photoasset != null ? false : true} style={{ marginTop: 20, marginLeft: 20, marginRight: 20,}} onPress={() => {
+          setSnack(true);
+          setTimeout(function(){setList1(false)}, 2000) 
+          }} >
+            <Button  mode= "contained" contentStyle={{height: 50,}} labelStyle={{color: 'white'}} style={{ backgroundColor: basicdone  && alignmentdone  && photoasset != null ? Colors.blue700 : 'lavender'}} >{t ? language.statement43 : "Finish" }</Button>
+          </TouchableRipple>
+
+          {success ? (
+   <Snackbar
+   style={{backgroundColor: Colors.green700, color: 'white',}}
+     visible={snack}
+     onDismiss={onDismissSnackBar3}
+     action={{
+       label: 'OK',
+       onPress: () => {
+        onDismissSnackBar3()
+       },
+     }}>
+     Record inserted successfully
+   </Snackbar>
+ ) : null}
   </List.Section>
-  ) : basic && !alignment && !photo ? (
-      <View style={{marginLeft: 10, marginRight: 10, marginTop: 10,}} >
+
+  ) : basic && !alignment && !photo && !habits ? (
+      <View style={{marginLeft: 10, marginRight: 10,}} >
+                  <Title>First Name</Title>
                   <TextInput
             style={{ marginBottom: 10, height: 40,}}
             mode='outlined'
             placeholder="First Name"
             selectionColor='white'
-            
+            onChangeText={(text) => {setFirstname(text)}}
           />
+
+          <Title>Last Name</Title>
           <TextInput
             style={{ marginBottom: 10, height: 40,}}
             mode='outlined'
             placeholder="Last Name"
             selectionColor='white'
-            
+            onChangeText={(text) => {setLastname(text)}}
           />
+          <Title>Age</Title>
               <TextInput
             style={{ marginBottom: 10, height: 40,}}
             mode='outlined'
             placeholder="Age"
             selectionColor='white'
-            
+            value={age != null ? age.toString() : "Age"}
+            onFocus = {() => {setOpen(true)}}
+            onBlur = {() => {setOpen(false)}}
           />
-          <RadioButton.Group value='male'>
+                    <DatePicker
+                  modal
+                  open={open}
+                  date={date}
+                  mode="date"
+                  title={null}
+                  onConfirm={(date) => {
+                    setOpen(false)
+                    setAge(calculateAge(date))
+                      setDate(date)
+
+                  }}
+                  onCancel={() => {
+                    setOpen(false)
+                  }}
+          />
+          <Title>Gender</Title>
+          <RadioButton.Group  onValueChange={(value) => {setGender(value)}} value={gender}>
+           <View style={{flexDirection: 'row', justifyContent: 'space-between'}} >
+            <View style={{flex: 1,}}>
             <RadioButton.Item label='Male' value='male' />
+           
+            </View>
+            <View style={{flex: 2, marginLeft: 5,}} >
             <RadioButton.Item label='Female' value='female' />
+            </View>
+           </View>
           </RadioButton.Group>
 
-          <TouchableRipple style={{ marginTop: 40, marginLeft: 20, marginRight: 20,}} onPress={() => {}} >
+          <TouchableRipple disabled={firstname != null && lastname != null && age != null && gender != null ? false : true} style={{ marginTop: 20, marginLeft: 20, marginRight: 20,}} onPress={() => {
+            setBasicDone(true);
+            setBasic(false);
+          }} >
             <Button  mode= "contained" contentStyle={{height: 50,}} labelStyle={{color: 'white'}} style={{ backgroundColor: Colors.blue700}} >Continue</Button>
           </TouchableRipple>
       </View>
-  ) : !basic && alignment && !photo ? (
+
+  ) : !basic && alignment && !photo && !habits ? (
     <View style={{marginLeft: 10, marginRight: 10, marginTop: 10,}} >
+      <Title>Disease Name</Title>
        <TextInput
             style={{ marginBottom: 10, height: 40,}}
             mode='outlined'
             placeholder="Disease"
             selectionColor='white'
-            
+            value={disease}
+            onChangeText={(text) => {setDisease(text)}}
           />
+          <Title>Brief Description<Text style={{fontWeight: 'normal', fontSize: 14}}>(optional)</Text></Title>
+          <TextInput
+            style={{ marginBottom: 10, height: 100,}}
+            mode='outlined'
+            placeholder="Describe some visible signs and symptoms"
+            selectionColor='white'
+            value={diseasedesc}
+            multiline={true}
+            onChangeText = {(text) => {setDiseaseDesc(text)}}
+          />
+
+<TouchableRipple disabled={disease != null  ? false : true} style={{ marginTop: 20, marginLeft: 20, marginRight: 20,}} onPress={() => {
+            setAlignmentDone(true);
+            setAlignment(false);
+          }} >
+            <Button  mode= "contained" contentStyle={{height: 50,}} labelStyle={{color: 'white'}} style={{ backgroundColor: Colors.blue700}} >Continue</Button>
+          </TouchableRipple>
     </View>
+  ) :  !basic && !alignment && !photo && habits ? (
+    <View style={{marginLeft: 10, marginRight: 10, marginTop: 10,}} >
+
+        <Title>Customer Habits<Text style={{fontWeight: 'normal', fontSize: 14}}>(optional)</Text></Title>
+        <Paragraph>Habits may include smoking, blood sugar, existing medication, chronic disease etc</Paragraph>
+        <TextInput
+          style={{ marginBottom: 10, height: 100,}}
+          mode='outlined'
+          placeholder="Describe some visible signs and symptoms"
+          selectionColor='white'
+          value={customerhabits}
+          multiline={true}
+          onChangeText = {(text) => {setCustomerHabits(text)}}
+        />
+
+<TouchableRipple style={{ marginTop: 20, marginLeft: 20, marginRight: 20,}} onPress={() => {
+          setHabitsDone(true);
+          setHabits(false);
+        }} >
+          <Button  mode= "contained" contentStyle={{height: 50,}} labelStyle={{color: 'white'}} style={{ backgroundColor: Colors.blue700}} >Continue</Button>
+        </TouchableRipple>
+  </View>
   ) : (
-    <RadioButton.Group value=''>
-    <RadioButton.Item label='Camera' value='true' />
-    <RadioButton.Item label='Upload' value='true' />
-  </RadioButton.Group>
+    indicator ? (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}} >
+        <ActivityIndicator size={30} animating={true} color={Colors.blue700} />
+      </View>
+    ) : (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+      {photoasset != null && photoasset.assets != undefined ? (
+          photoasset.assets.map((uri) => {
+            return (
+             <Avatar.Image style={{marginBottom: 20,}} key={uri} size = {200} source={uri} />
+            )
+          })
+
+      ) : (
+         <Avatar.Image style={{marginBottom: 20,}} size = {200} source={require('./assets/doctor.png')} />
+      )}
+ 
+     {photoasset != null ? (
+             <TouchableRipple style={{borderRadius: 40, marginTop: 10, width: '80%'}} onPress={() => {uploadPhotoToS3()}} >
+             <Button mode="outlined" contentStyle={{height: 40,}} labelStyle={{color: "white"}} style={{ borderRadius: 40, backgroundColor: Colors.blue700, borderColor: Colors.blue700}} >Save Photo</Button>
+           </TouchableRipple>
+     ) : (
+       <TouchableRipple style={{borderRadius: 40, marginTop: 10, width: '80%'}} onPress={() => {chooseCameraGallary()}} >
+       <Button mode="outlined" contentStyle={{height: 40,}} labelStyle={{color: Colors.blue700}} style={{ borderRadius: 40, borderColor: Colors.blue700}} >Upload Photo</Button>
+     </TouchableRipple>
+     )}
+ 
+ {success ? (
+   <Snackbar
+   style={{backgroundColor: Colors.green700, color: 'white',}}
+     visible={success}
+     onDismiss={onDismissSnackBar1}
+     action={{
+       label: 'OK',
+       onPress: () => {
+        onDismissSnackBar1()
+       },
+     }}>
+     Photo saved successfully
+   </Snackbar>
+ ) : null}
+ 
+ {error ? (
+   <Snackbar
+   style={{backgroundColor: Colors.red700, color: 'white',}}
+     visible={error}
+     onDismiss={onDismissSnackBar2}
+     action={{
+       label: 'OK',
+       onPress: () => {
+        onDismissSnackBar2()
+       },
+     }}>
+    You are offline! We will retry once you are connected
+   </Snackbar>
+ ) : null}
+     </View>
+    )
   )
 ) :
 !list1 && list2 && !list3 ? (
@@ -595,6 +1089,18 @@ function Home({navigation}){
   right={props => <List.Icon {...props} icon="chevron-right" />}>
     
   </List.Accordion>
+  <Snackbar
+   style={{backgroundColor: Colors.green700, color: 'white',}}
+     visible={snack}
+     onDismiss={onDismissSnackBar3}
+     action={{
+       label: 'OK',
+       onPress: () => {
+        onDismissSnackBar3()
+       },
+     }}>
+     Record inserted successfully
+   </Snackbar>
 </List.Section>
 )
 }
@@ -703,7 +1209,7 @@ function Home({navigation}){
          <StatusBar backgroundColor={Colors.blue700}/>
          <Appbar.Header style={{backgroundColor: Colors.blue700}} >
            <Appbar.BackAction onPress={() => {setIndex(0)}} />
-        <Appbar.Content title="Rewards"  style={{color: 'white',}} />
+        <Appbar.Content title="Points"  style={{color: 'white',}} />
         </Appbar.Header>
         <View style={{height: height,}}>
         <LineChart
@@ -796,7 +1302,78 @@ function Home({navigation}){
     const height = (Dimensions.get('window').height) * 3/4;
     const width = (Dimensions.get('window'). width) ;
     const { signOut } = React.useContext(AuthContext);
+    const [firstname, setFirstname] = useState("David");
+    const [lastname, setLastname] = useState("Kitavi");
+    const [email, setEmail] = useState("daviskitavi98@gmail.com");
+    const [lang, setLang] = useState("English")
 
+    const syncLanguage = React.useCallback(() => {
+      async function A(){
+        var l = await AsyncStorage.getItem('lang');
+        switch(l){
+          case "ENG":
+            setLang("English");
+            break;
+          case 'KISW':
+              setLang("Kiswahili");
+              break;
+          default:
+              setLang("French")
+        }
+      }
+  
+      A();
+    }, []);
+
+    useEffect(() => {
+      async function A(){
+        var l = await AsyncStorage.getItem('lang');
+        switch(l){
+          case "ENG":
+            setLang("English");
+            break;
+          case 'KISW':
+              setLang("Kiswahili");
+              break;
+          default:
+              setLang("French")
+        }
+      }
+  
+      A();
+
+      var timer = setInterval(function(){syncLanguage()}, 1000);
+
+      return () => {
+        clearInterval(timer);
+      }
+    }, []);
+
+    const handleChangeLanguage = async() => {
+        Alert.alert(
+          "Language",
+          "Choose Preferred language",
+          [
+            {
+              text: "Swahili",
+              onPress: async () => {
+                await AsyncStorage.setItem("lang", "KISW");
+              }
+            },
+            { text: "English", onPress: async () => {
+              await AsyncStorage.setItem("lang", "ENG");
+            } },
+            { text: "French", onPress: async () => {
+              await AsyncStorage.setItem("lang", "FRENCH");
+            } },
+            {
+              text: "Cancel",
+              onPress: () => console.log("Cancel Pressed"),
+              style: "cancel"
+            }
+          ]
+        );
+    }
     return (
      <SafeAreaView style={{flex: 1,}}>
         <StatusBar backgroundColor={Colors.blue700}/>
@@ -808,13 +1385,13 @@ function Home({navigation}){
       <Surface style={{marginTop: 20, elevation: 1, height: height, width: width * 0.9, marginLeft: width * 0.05, marginRight: width * 0.05, }}>
       <List.Item
       title="Edit Names"
-      description="David Kitavi"
+      description={firstname + " "+ lastname}
       right={props => <List.Icon {...props} icon="chevron-right" />}
                                     />
 
 <List.Item
       title="Edit Email"
-      description="daviskitavi98@gmail.com"
+      description={email}
       right={props => <List.Icon {...props} icon="chevron-right" />}
 
                                     />
@@ -828,7 +1405,10 @@ function Home({navigation}){
   
 <List.Item
       title="Change Language"
-      description="English"
+      description={lang}
+      onPress={() => {
+        handleChangeLanguage();
+      }}
       right={props => <List.Icon {...props} icon="chevron-right" />}
 
                                     />
@@ -845,7 +1425,7 @@ function Home({navigation}){
   }
 
   const [routes] = React.useState([
-    {key: 'dashboard',  title: 'Home', icon: 'home'},
+    {key: 'dashboard',  title: globalt ? globallang.statement7 : 'Home' , icon: 'home'},
     {key: 'plus', name: 'Client', title: 'New Client', icon: 'plus'},
     {key: 'sale', title: 'Sales', icon: 'cart'},
     {key: 'activity', title: 'Points', icon: 'wallet'},
@@ -873,6 +1453,7 @@ function Home({navigation}){
 }
 
 const App = ({ navigation }) => {
+  const [language, setLanguage] = useState({});
   const [state, dispatch] = React.useReducer(
     (prevState, action) => {
       switch (action.type){
@@ -937,6 +1518,22 @@ const App = ({ navigation }) => {
           // delete token from database.
         } catch(e){
           console.log(e);
+        }
+      },
+      changeLanguage: async(data) => {
+        await AsyncStorage.setItem('lang', data.lang);
+        switch(data.lang){
+          case 'ENG': 
+            setLanguage({});
+            break;
+          case 'KISW':
+            setLanguage(Swahili);
+            break;
+          case 'FRENCH':
+            setLanguage(French);
+            break;
+          default:
+            console.log("Undefined language -"+data.lang);
         }
       }
     }),
